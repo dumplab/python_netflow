@@ -86,6 +86,7 @@ class cNetDataMapperFlowMon:
                                 print("Token: " + str(self.__token))
                                 print("Response: " + str(response))
                                 print("ResponseContent: " + str(response.content))
+                        print("ResponseContent: " + str(response.content))
 
                 else:
                         print("No service ticket was received.  Ending program!")
