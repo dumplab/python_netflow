@@ -3,4 +3,3 @@ from cNetDataMapperFlowMon import *
 
 flowMap = cNetDataMapperFlowMon()
 flowMap.getActiveDevices()
-
