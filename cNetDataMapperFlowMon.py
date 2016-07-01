@@ -9,9 +9,8 @@ __license__   = "MIT"
 __version__   = "0.1"
 __status__    = "Development"
 
-import re
-import requests
-import json
+import time,json,re,requests
+from flowmonconfig import FLOWMON_HOST,FLOWMON_REST_USER,FLOWMON_REST_PASS
 
 class cNetDataMapperFlowMon:
         """The mapper between FlowMon and ..."""
@@ -21,9 +20,9 @@ class cNetDataMapperFlowMon:
 		
 		No arguments
 		"""
-		self.__controller = "<your.flowmonhost>"
-		self.__username   = "flowmonusrname"
-		self.__password   = "flowmonpass"
+		self.__controller = FLOWMON_HOST
+		self.__username   = FLOWMON_REST_USER
+		self.__password   = FLOWMON_REST_PASS
 		self.__token      = None
 		self.__debugging  = False
 
@@ -32,13 +31,10 @@ class cNetDataMapperFlowMon:
 		self.__token=None
 		#specify the username and password which will be included in the data. 
 		payload = {"username":self.__username,"password":self.__password,"grant_type":"password","client_id":"invea-tech"}
-
 		#This is the URL to get the authentication token.  
 		url = "https://" + self.__controller + "/resources/oauth/token"
-  
 		#SSL certification is turned off, but should be active in production environments
 		response=requests.post(url,payload, verify=False)
-  
 		#Check if a response was received. If not, print an error message.
 		if(not response):
 			if self.__debugging == True:
@@ -54,39 +50,56 @@ class cNetDataMapperFlowMon:
 		# see if we already got a token
 		if self.__token is None:
 	                self.__getAuthToken()
-                #If tocken was received get chart using profile live
                 if(self.__token):
-			header = {"Authorization": "bearer " + self.__token}
-			payload = {"from":"2016-06-01 00:00","to": "2016-06-01 08:00","profile": "live","chart": { "measure": "traffic","protocol": 1}}
-			#This is the URL to get the authentication token.  
-			url = "https://" + self.__controller + "/rest/fmc/analysis/chart"
+			header  = {"Authorization": "bearer " + self.__token}
+			payload = {"from":self.__getTodayString() + " 00:00","to":self.__getNowString(),"profile": "live","chart": { "measure": "traffic","protocol": 1}}
+			url      = "https://" + self.__controller + "/rest/fmc/analysis/chart"
        	                #Get 
-			response=requests.get(url+"?search="+json.dumps(payload),headers=header,verify=False)
-#			response = self.__doRestCall(self.__ticket,"get", "https://" + self.__controller + "/rest/fmc/analysis/chart")
-			if self.__debugging == True:
-				print("Token: " + str(self.__token))
-				print("Response: " + str(response))
-				print("ResponseContent: " + str(response.content))
-			print response.content
-
+			response = requests.get(url+"?search="+json.dumps(payload),headers=header,verify=False)
+			if response.status_code==200:
+				if self.__debugging == True:
+					print("Response: " + str(response.content))
+				return json.loads(response.content)
                	else:
-               	        print("No service ticket was received.  Ending program!")
+			print("No authentication token was received.")
 
-        def getActiveDevices(self):
-                # see if we already got a token
-                if self.__token is None:
-                        self.__getAuthToken()
-                #If ticket received get active device
-                if(self.__token):
-                        header = {"Authorization": "bearer " + self.__token}
-                        payload = {"from":"2016-06-28 00:00","to": "2016-06-28 14:00","device": "10.10.10.0/24"}
-                        url = "https://" + self.__controller + "/rest/fmc/activeDevices?limit=50"
-                        response=requests.get(url+"&search="+json.dumps(payload),headers=header,verify=False)
-                        if self.__debugging == True:
-                                print("Token: " + str(self.__token))
-                                print("Response: " + str(response))
-                                print("ResponseContent: " + str(response.content))
-                        print("ResponseContent: " + str(response.content))
+	def getActiveDevicesByAddress(self,address=None,limit=50):
+		"""getActiveDevicesByAddress - return activeDevices seen today json
+		
+		Keyword arguments:
+		address -- could be and IPv4 IPv4 w/ CIDR notation or mac address in format xy:xy:xy:xy:xy
+		limit   -- returned limit - default 50
+		"""
+		if address==None:
+			return False
+		# get token
+		if self.__token is None:
+			self.__getAuthToken()
+		if(self.__token):
+			header   = {"Authorization": "bearer " + self.__token}
+			payload  = {"from":self.__getTodayString() + " 00:00","to":self.__getNowString(),"device": address}
+			url      = "https://" + self.__controller + "/rest/fmc/activeDevices?limit=" + str(limit)
+			response = requests.get(url+"&search="+json.dumps(payload),headers=header,verify=False)
+			if response.status_code==200:
+				if self.__debugging == True:
+					print("Response: " + str(response.content))
+				return json.loads(response.content)
+			else:
+				return None
+		else:
+			print("No authentication token was received.")
 
-                else:
-                        print("No service ticket was received.  Ending program!")
+	def __getTodayString(self):
+		"""__getTodayString - return somethin like 2016-08-01 as a string
+		
+		No arguments
+		"""
+		return time.strftime("%Y-%m-%d")
+
+	def __getNowString(self):
+		"""__getNowString - return something like 2016-08-01 12:24 as a string
+		
+		No arguments
+		"""
+		return time.strftime("%Y-%m-%d %H:%M")
+
