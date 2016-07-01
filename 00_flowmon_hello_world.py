@@ -1,5 +1,7 @@
 #!/usr/bin/python
 from cNetDataMapperFlowMon import *
 
+# connect to flow mon REST API and retrieve todays chart
 flowMap = cNetDataMapperFlowMon()
-flowMap.getActiveDevices()
+data    = flowMap.getChart()
+print(json.dumps(data, indent=4))
