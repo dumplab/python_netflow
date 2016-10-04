@@ -6,7 +6,7 @@ This class gives you an idea how to use FlowMon REST API ... please read FlowMon
 __author__    = "dumplab"
 __copyright__ = "2016 dumplab"
 __license__   = "MIT"
-__version__   = "0.1"
+__version__   = "0.2"
 __status__    = "Development"
 
 import time,json,re,requests
@@ -29,18 +29,13 @@ class cNetDataMapperFlowMon:
 	def __getAuthToken(self):
 		"""Get a Authentication Token from FlowMon"""
 		self.__token=None
-		#specify the username and password which will be included in the data. 
 		payload = {"username":self.__username,"password":self.__password,"grant_type":"password","client_id":"invea-tech"}
-		#This is the URL to get the authentication token.  
 		url = "https://" + self.__controller + "/resources/oauth/token"
-		#SSL certification is turned off, but should be active in production environments
 		response=requests.post(url,payload, verify=False)
-		#Check if a response was received. If not, print an error message.
 		if(not response):
 			if self.__debugging == True:
 				print ("No data returned while fetching token!")
 		else:
-			#Data received.  Get the token
 			r_json=response.json()
 			self.__token = r_json["access_token"]
 			if self.__debugging == True:
@@ -62,6 +57,95 @@ class cNetDataMapperFlowMon:
 				return json.loads(response.content)
                	else:
 			print("No authentication token was received.")
+
+	def getAllProfiles(self):
+		# see if we already got a token
+		if self.__token is None:
+			self.__getAuthToken()
+		if(self.__token):
+			header = {"Authorization": "bearer " + self.__token}
+			url = "https://" + self.__controller + "/rest/fmc/profiles"
+			response=requests.get(url,headers=header,verify=False)
+			if response.status_code==200:
+				if self.__debugging == True:
+					print("Response: " + str(response.content))
+				pythonData = json.loads(response.content)
+				return pythonData
+			if response.status_code==204:
+				if self.__debugging == True:
+					print("Response: No data satisfiing search conditions found. " + str(response.content))
+			if response.status_code==405:
+				if self.__debugging == True:
+					print("Response: Parameters invalid " + str(response.content))
+			return None
+	else:
+			print("No service ticket was received.")
+					
+	def getFlows(self,fmFilter="",limit=10):
+		"""getFlows - start async job on flowmon, returns jobid which could be used to request the results using getAsyncResultFlows()
+
+		Keyword arguments:
+		fmFilter -- filter as known to FlowMon for example ip 10.10.10.1 or dns-qtype "PTR"
+		limit    -- returned limit - default 10
+		"""
+		if fmFilter==None:
+			return None
+		# see if we already got a token
+		if self.__token is None:
+			self.__getAuthToken()
+		if(self.__token):
+			header  = {"Authorization": "bearer " + self.__token}
+			payload = {"from": self.__getTodayString() + " 00:00", "to": self.__getNowString(), "filter": fmFilter, "profile":"live", "channels":["all"], "listing": {"aggregateBy": ["srcip", "proto"] } }
+			output  = ["ts","td","pr","sa","sp","da","dp","pr","pkt"]
+			url     = "https://" + self.__controller + "/rest/fmc/analysis/flows"
+			response=requests.get(url+"?search="+json.dumps(payload)+"&output="+json.dumps(output)+"&showonly="+str(limit),headers=header,verify=False)
+			if response.status_code==200:
+				if self.__debugging == True:
+					print("Response: " + str(response.content))
+				pythonData = json.loads(response.content)
+				return pythonData["id"]
+			if response.status_code==204:
+				if self.__debugging == True:
+					print("Response: No data satisfiing search conditions found. " + str(response.content))
+			if response.status_code==405:
+				if self.__debugging == True:
+					print("Response: Parameters invalid " + str(response.content))
+				print("Got HTTP " + str(response.status_code)+ " " + str(response.content))
+				return None
+			else:
+				print("No service ticket was received.")
+
+	def getAsyncResultFlows(self,resId=None):
+		"""getAsyncResultFlows - returns results
+	
+		Keyword arguments:
+		resId   -- id you received on your previous call for example using getFlows()
+		"""
+		if resId==None:
+			return None
+		# see if we already got a token
+		if self.__token is None:
+			self.__getAuthToken()
+		#If ticket received get active device
+		if(self.__token):
+			header = {"Authorization": "bearer " + self.__token}
+			url = "https://" + self.__controller + "/rest/fmc/analysis/results/" + str(resId)
+			response=requests.get(url,headers=header,verify=False)
+			if response.status_code==200:
+				if self.__debugging == True:
+					print("Response: " + str(response.content))
+				pythonData = json.loads(response.content)
+				return pythonData
+			if response.status_code==204:
+				if self.__debugging == True:
+					print("Response: No data satisfiing search conditions found. " + str(response.content))
+			if response.status_code==405:
+				if self.__debugging == True:
+					print("Response: Parameters invalid " + str(response.content))
+				print("Got HTTP " + str(response.status_code)+ " " + str(response.content))
+				return None
+		else:
+			print("No service ticket was received.")
 
 	def getActiveDevicesByAddress(self,address=None,limit=50):
 		"""getActiveDevicesByAddress - return activeDevices seen today json
